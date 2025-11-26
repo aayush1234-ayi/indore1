@@ -127,7 +127,7 @@
                         <input type="tel" id="p-mobile" class="form-control" readonly style="background:#f8fafc; color:#94a3b8; font-size:0.85rem;">
                     </div>
 
-                    <!-- NEW FIELDS START -->
+                    <!-- INPUT FIELDS -->
                     <div style="display:flex; gap:10px; margin-bottom:0px;">
                         <select id="p-type" class="form-control">
                             <option value="" disabled selected>Room Type</option>
@@ -149,7 +149,6 @@
                         <option value="Girls Only">Girls Only</option>
                         <option value="Boys Only">Boys Only</option>
                     </select>
-                    <!-- NEW FIELDS END -->
 
                     <input type="text" id="p-address" class="form-control" placeholder="Full Address / Landmark">
                     <input type="number" id="p-price" class="form-control" placeholder="Monthly Rent (₹)">
@@ -256,7 +255,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getDatabase, ref, push, onValue, remove, update, set } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
-        // --- YOUR PROVIDED FIREBASE CONFIG ---
+        // --- FIREBASE CONFIG ---
         const firebaseConfig = {
           apiKey: "AIzaSyACyhDCsfJ23x1hJ1njzkvrEmRVTN1HZ78",
           authDomain: "rooms-20b62.firebaseapp.com",
@@ -282,7 +281,6 @@
 
         // Initialize App
         if(currentUser) {
-            // Ensure global functions are ready before showing app
             setTimeout(() => window.showApp(), 100);
         }
 
@@ -291,7 +289,6 @@
             const data = snapshot.val();
             allRooms = data ? Object.entries(data).map(([key, val]) => ({ id: key, ...val })).reverse() : [];
             
-            // Auto refresh current view
             if(document.getElementById('tab-home').classList.contains('active')) {
                 const val = document.getElementById('search-input').value;
                 window.renderFeed(val);
@@ -301,7 +298,42 @@
             }
         });
 
-        // --- DEFINE GLOBAL FUNCTIONS ---
+        // --- IMAGE COMPRESSOR FUNCTION (FIX FOR POSTING) ---
+        const compressImage = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        // Resize logic
+                        const maxWidth = 600; 
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Return compressed Base64 (0.6 quality)
+                        resolve(canvas.toDataURL('image/jpeg', 0.6)); 
+                    };
+                    img.onerror = (err) => reject(err);
+                };
+                reader.onerror = (err) => reject(err);
+            });
+        };
+
+        // --- GLOBAL FUNCTIONS ---
         
         window.attemptLogin = () => {
             const name = document.getElementById('l-name').value;
@@ -312,10 +344,7 @@
             window.runWithLoader(() => {
                 currentUser = { name, mobile, id: Date.now(), pic: '' };
                 localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
-                
-                // Save to Firebase Users
                 set(ref(db, 'users/' + mobile), currentUser);
-                
                 window.showToast(`Welcome, ${name}!`);
                 window.showApp();
             });
@@ -329,7 +358,8 @@
             window.renderFeed();
         };
 
-        window.handlePost = () => {
+        // --- UPDATED POST FUNCTION ---
+        window.handlePost = async () => {
             const price = document.getElementById('p-price').value;
             const addr = document.getElementById('p-address').value;
             const type = document.getElementById('p-type').value;
@@ -340,34 +370,41 @@
             if(!price || !addr || !type || !tenant || !capacity) return window.showToast("Fill all details", "error");
             if(!imgInput.files[0]) return window.showToast("Upload photo", "error");
 
-            window.runWithLoader(() => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const newRoom = {
-                        ownerId: currentUser.id,
-                        name: currentUser.name,
-                        mobile: currentUser.mobile,
-                        address: addr,
-                        price: price,
-                        type: type,
-                        tenant: tenant,
-                        capacity: capacity,
-                        image: e.target.result,
-                        hidden: false,
-                        timestamp: Date.now()
-                    };
-                    
-                    push(ref(db, 'rooms'), newRoom).then(() => {
-                        window.showToast("Room Posted Online!");
-                        document.getElementById('p-address').value = '';
-                        document.getElementById('p-price').value = '';
-                        document.getElementById('p-img').value = '';
-                        document.getElementById('p-capacity').value = '';
-                        window.switchTab('tab-home', document.querySelectorAll('.nav-item')[0]);
-                    });
+            document.getElementById('global-loader').style.display = 'flex';
+
+            try {
+                // Compress Image before upload
+                const compressedImg = await compressImage(imgInput.files[0]);
+
+                const newRoom = {
+                    ownerId: currentUser.id,
+                    name: currentUser.name,
+                    mobile: currentUser.mobile,
+                    address: addr,
+                    price: price,
+                    type: type,
+                    tenant: tenant,
+                    capacity: capacity,
+                    image: compressedImg,
+                    hidden: false,
+                    timestamp: Date.now()
                 };
-                reader.readAsDataURL(imgInput.files[0]);
-            });
+                
+                await push(ref(db, 'rooms'), newRoom);
+
+                window.showToast("Room Posted Online!");
+                document.getElementById('p-address').value = '';
+                document.getElementById('p-price').value = '';
+                document.getElementById('p-img').value = '';
+                document.getElementById('p-capacity').value = '';
+                window.switchTab('tab-home', document.querySelectorAll('.nav-item')[0]);
+
+            } catch (error) {
+                console.error("Post Error:", error);
+                window.showToast("Failed: " + error.message, "error");
+            } finally {
+                document.getElementById('global-loader').style.display = 'none';
+            }
         };
 
         window.renderFeed = (filter = '') => {
@@ -465,6 +502,27 @@
                 container.appendChild(div);
             });
         };
+        
+        window.renderHistory = () => {
+             const container = document.getElementById('checked-list');
+             const historyRooms = allRooms.filter(r => checkedHistory.includes(r.id));
+             container.innerHTML = historyRooms.length ? '' : '<div style="text-align:center; padding:30px; color:#94a3b8;">No history yet.</div>';
+             
+             historyRooms.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'room-card';
+                div.innerHTML = `
+                    <div style="display:flex; padding:12px; gap:12px;" onclick="window.showDetails(allRooms.find(x=>x.id==='${r.id}'))">
+                        <img src="${r.image}" style="width:80px; height:80px; border-radius:10px; object-fit:cover;">
+                        <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+                            <b style="color:#1e293b;">${r.address}</b>
+                            <span style="color:#2563eb; font-weight:600;">₹${r.price}</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="align-self:center; color:#cbd5e1;"></i>
+                    </div>`;
+                container.appendChild(div);
+             });
+        };
 
         // Delete / Edit Logic
         window.confirmDelete = (id) => { deleteTargetId = id; document.getElementById('delete-modal').style.display = 'flex'; };
@@ -483,6 +541,8 @@
                 document.getElementById('edit-room-id').value = r.id;
                 document.getElementById('edit-room-price').value = r.price;
                 document.getElementById('edit-room-address').value = r.address;
+                document.getElementById('edit-room-type').value = r.type || 'Single Room';
+                document.getElementById('edit-room-tenant').value = r.tenant || 'All';
                 document.getElementById('edit-room-modal').style.display = 'flex';
             }
         };
