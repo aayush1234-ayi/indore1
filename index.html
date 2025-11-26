@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raj ROOM'S - User App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- GLOBAL STYLES --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #ffffff; transition: background-color 0.3s ease; overflow-x: hidden; }
+        body.app-mode { background-color: #f8fafc; padding-bottom: 70px; padding-top: 60px; }
+
+        /* --- TOAST & LOADER --- */
+        #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 10000; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { background: white; padding: 12px 20px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 12px; animation: slideDown 0.4s ease forwards; pointer-events: auto; border-left: 5px solid #ccc; }
+        .toast.success { border-left-color: #22c55e; } .toast.success i { color: #22c55e; }
+        .toast.error { border-left-color: #ef4444; } .toast.error i { color: #ef4444; }
+        .toast-msg { font-size: 0.9rem; font-weight: 500; color: #334155; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        #global-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 9999; display: none; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .spinner { width: 45px; height: 45px; border: 4px solid #e2e8f0; border-top: 4px solid #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- LOGIN --- */
+        #login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: #ffffff; display: flex; justify-content: center; align-items: center; z-index: 5000; transition: opacity 0.3s ease; }
+        .login-container { width: 360px; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); background: white; border: 1px solid #f1f5f9; }
+        
+        /* --- UI ELEMENTS --- */
+        .header { position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 1000; }
+        .header h1 { font-size: 1.3rem; font-weight: 700; color: #2563eb; letter-spacing: 1px; }
+        
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 65px; background: #fff; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #f1f5f9; z-index: 1000; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; font-size: 0.75rem; cursor: pointer; transition: 0.2s; }
+        .nav-item.active { color: #2563eb; transform: translateY(-2px); }
+        .nav-item i { font-size: 1.4rem; margin-bottom: 3px; }
+
+        .section { display: none; padding: 15px; animation: fadeUp 0.3s ease; }
+        .section.active { display: block; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+        .form-control { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 15px; outline: none; transition: 0.3s; font-size: 0.95rem; background: #fff; }
+        .form-control:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+        .btn-primary { width: 100%; background: #2563eb; color: white; padding: 14px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 1rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); transition: 0.2s; }
+        .btn-primary:active { transform: scale(0.98); }
+
+        /* --- ROOM CARD STYLES --- */
+        .room-card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 20px; cursor: pointer; border: 1px solid #f1f5f9; transition: transform 0.2s; }
+        .room-card:active { transform: scale(0.99); }
+        .room-card img { width: 100%; height: 200px; object-fit: cover; }
+        .card-body { padding: 15px; }
+        .price-tag { font-size: 1.3rem; font-weight: 700; color: #2563eb; }
+        .address-text { color: #64748b; font-size: 0.9rem; margin-top: 5px; display: flex; align-items: center; gap: 5px; }
+        
+        /* TAGS STYLE */
+        .tags-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .tag-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
+        .tag-type { background: #e0f2fe; color: #0284c7; }
+        .tag-tenant { background: #f3e8ff; color: #9333ea; }
+        .tag-capacity { background: #f1f5f9; color: #475569; }
+
+        /* --- FULL PAGES & MODALS --- */
+        .full-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; z-index: 2000; display: none; flex-direction: column; overflow-y: auto; }
+        .page-header { background: #fff; padding: 15px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 10; }
+        .back-btn { font-size: 1.2rem; margin-right: 15px; cursor: pointer; color: #1e293b; }
+        .page-title { font-weight: 600; font-size: 1.1rem; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 3000; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+        .modal-box { background: white; width: 85%; max-width: 320px; padding: 25px; border-radius: 16px; text-align: center; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        /* Profile styles */
+        .profile-head { text-align: center; margin-bottom: 30px; }
+        .profile-img-box { position: relative; width: 110px; height: 110px; margin: 0 auto 10px; }
+        .profile-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid #2563eb; }
+        .cam-badge { position: absolute; bottom: 0; right: 0; background: #1e293b; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .menu-list { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .menu-item { padding: 18px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; cursor: pointer; border: none; color: white; margin-right: 5px; font-weight: 500; }
+        .btn-edit { background: #f59e0b; }
+        .btn-del { background: #ef4444; }
+    </style>
+</head>
+<body>
+
+    <!-- TOAST & LOADER -->
+    <div id="toast-container"></div>
+    <div id="global-loader" style="display: none;"><div class="spinner"></div></div>
+
+    <!-- 1. LOGIN SCREEN -->
+    <div id="login-screen">
+        <div class="login-container">
+            <h2 style="text-align:center; color:#2563eb; margin-bottom:20px; font-weight:700;">Raj ROOM'S</h2>
+            <p style="text-align:center; color:#64748b; margin-bottom:20px; font-size:0.9rem;">Find your perfect room</p>
+            <input type="text" id="l-name" class="form-control" placeholder="Your Name">
+            <input type="number" id="l-mobile" class="form-control" placeholder="Mobile Number">
+            <button class="btn-primary" onclick="window.attemptLogin()">Start App</button>
+        </div>
+    </div>
+
+    <!-- 2. MAIN APP -->
+    <div id="app-wrapper" style="display:none;">
+        <header class="header"><h1>Raj ROOM'S</h1></header>
+
+        <main id="main-app">
+            
+            <!-- HOME FEED -->
+            <section id="tab-home" class="section active">
+                <div style="position:relative; margin-bottom:15px;">
+                    <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:15px; top:12px; color:#94a3b8;"></i>
+                    <input type="text" id="search-input" class="form-control" style="padding-left:40px; border-radius:30px; box-shadow:0 2px 10px rgba(0,0,0,0.05);" placeholder="Search location, price, type..." onkeyup="window.handleSearch(this.value)">
+                </div>
+                <div id="rooms-feed"></div>
+            </section>
+
+            <!-- POST ROOM -->
+            <section id="tab-plus" class="section">
+                <div style="background:white; padding:25px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+                    <h2 style="text-align:center; margin-bottom:20px; color:#1e293b;">Post New Room</h2>
+                    
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <input type="text" id="p-name" class="form-control" readonly style="background:#f8fafc; color:#94a3b8; font-size:0.85rem;">
+                        <input type="tel" id="p-mobile" class="form-control" readonly style="background:#f8fafc; color:#94a3b8; font-size:0.85rem;">
+                    </div>
+
+                    <!-- NEW FIELDS START -->
+                    <div style="display:flex; gap:10px; margin-bottom:0px;">
+                        <select id="p-type" class="form-control">
+                            <option value="" disabled selected>Room Type</option>
+                            <option value="Single Room">Single Room</option>
+                            <option value="1 RK">1 RK</option>
+                            <option value="1 BHK">1 BHK</option>
+                            <option value="2 BHK">2 BHK</option>
+                            <option value="3 BHK">3 BHK</option>
+                            <option value="Flat">Full Flat</option>
+                        </select>
+                        <input type="number" id="p-capacity" class="form-control" placeholder="Persons (Max)">
+                    </div>
+
+                    <select id="p-tenant" class="form-control">
+                        <option value="" disabled selected>Preferred Tenant</option>
+                        <option value="All">Any (Students/Family)</option>
+                        <option value="Students Only">Students Only</option>
+                        <option value="Family Only">Family Only</option>
+                        <option value="Girls Only">Girls Only</option>
+                        <option value="Boys Only">Boys Only</option>
+                    </select>
+                    <!-- NEW FIELDS END -->
+
+                    <input type="text" id="p-address" class="form-control" placeholder="Full Address / Landmark">
+                    <input type="number" id="p-price" class="form-control" placeholder="Monthly Rent (₹)">
+                    
+                    <label style="font-size:13px; font-weight:600; margin-bottom:8px; display:block; color:#1e293b;">Upload Photo</label>
+                    <input type="file" id="p-img" accept="image/*" class="form-control" style="padding:10px;">
+                    
+                    <button onclick="window.handlePost()" class="btn-primary">Post Room</button>
+                </div>
+            </section>
+
+            <!-- PROFILE SECTION -->
+            <section id="tab-profile" class="section">
+                <div class="profile-head">
+                    <div class="profile-img-box">
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" id="display-profile-pic" class="profile-img">
+                        <label for="profile-upload" class="cam-badge"><i class="fa-solid fa-camera"></i></label>
+                        <input type="file" id="profile-upload" hidden accept="image/*" onchange="window.updateProfilePic(this)">
+                    </div>
+                    <h2 style="display:inline-block;" id="display-name">User Name</h2>
+                    <i class="fa-solid fa-pencil" style="margin-left:8px; color:#2563eb; cursor:pointer;" onclick="window.openNameModal()"></i>
+                    <p id="display-mobile" style="color:#64748b; font-size:0.9rem; margin-top:5px;">+91 XXXXXXXX</p>
+                </div>
+                <div class="menu-list">
+                    <div class="menu-item" onclick="window.openPage('page-my-rooms')"><div><i class="fa-solid fa-house-user menu-icon"></i> My Room's</div><i class="fa-solid fa-chevron-right" style="color:#cbd5e1"></i></div>
+                    <div class="menu-item" onclick="window.openPage('page-checked')"><div><i class="fa-solid fa-clock-rotate-left menu-icon"></i> Checked History</div><i class="fa-solid fa-chevron-right" style="color:#cbd5e1"></i></div>
+                    <div class="menu-item" onclick="window.openPage('page-help')"><div><i class="fa-solid fa-headset menu-icon"></i> Help & Support</div><i class="fa-solid fa-chevron-right" style="color:#cbd5e1"></i></div>
+                    <div class="menu-item" onclick="window.logout()"><div style="color:#ef4444"><i class="fa-solid fa-arrow-right-from-bracket menu-icon" style="color:#ef4444"></i> Logout</div></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- NAV -->
+        <nav class="bottom-nav">
+            <div class="nav-item active" onclick="window.switchTab('tab-home', this)"><i class="fa-solid fa-house"></i> Home</div>
+            <div class="nav-item" onclick="window.switchTab('tab-plus', this)"><i class="fa-solid fa-circle-plus"></i> Post</div>
+            <div class="nav-item" onclick="window.switchTab('tab-profile', this)"><i class="fa-solid fa-user"></i> Profile</div>
+        </nav>
+
+        <!-- DETAILS PAGE -->
+        <div id="page-details" class="full-page">
+            <div class="page-header"><i class="fa-solid fa-arrow-left back-btn" onclick="window.closePage('page-details')"></i> <span class="page-title">Room Details</span></div>
+            <div id="details-content" style="padding:0;"></div>
+        </div>
+
+        <!-- MY ROOMS -->
+        <div id="page-my-rooms" class="full-page">
+            <div class="page-header"><i class="fa-solid fa-arrow-left back-btn" onclick="window.closePage('page-my-rooms')"></i> <span class="page-title">My Posted Rooms</span></div>
+            <div id="my-rooms-list" style="padding:15px;"></div>
+        </div>
+
+        <!-- HISTORY -->
+        <div id="page-checked" class="full-page">
+            <div class="page-header"><i class="fa-solid fa-arrow-left back-btn" onclick="window.closePage('page-checked')"></i> <span class="page-title">Checked History</span></div>
+            <div id="checked-list" style="padding:15px;"></div>
+        </div>
+
+        <!-- HELP -->
+        <div id="page-help" class="full-page">
+            <div class="page-header"><i class="fa-solid fa-arrow-left back-btn" onclick="window.closePage('page-help')"></i> <span class="page-title">Help & Support</span></div>
+            <div style="padding:30px; text-align:center;">
+                <h3>Contact Support</h3>
+                <p style="margin-top:20px;">support@rajrooms.com</p>
+                <button class="btn-primary" style="margin-top:20px; background:#25D366;">Chat on Whatsapp</button>
+            </div>
+        </div>
+
+        <!-- MODALS -->
+        <div id="name-modal" class="modal">
+            <div class="modal-box">
+                <h3>Edit Profile Name</h3>
+                <input type="text" id="edit-name-input" class="form-control" style="margin:15px 0;">
+                <div style="display:flex; gap:10px;"><button class="btn-primary" onclick="window.saveName()">Save</button><button class="btn-primary" style="background:#f1f5f9; color:#475569;" onclick="document.getElementById('name-modal').style.display='none'">Cancel</button></div>
+            </div>
+        </div>
+
+        <div id="edit-room-modal" class="modal">
+            <div class="modal-box">
+                <h3 style="margin-bottom:15px;">Edit Details</h3>
+                <input type="hidden" id="edit-room-id">
+                <select id="edit-room-type" class="form-control" style="margin-bottom:8px;">
+                     <option value="Single Room">Single Room</option><option value="1 RK">1 RK</option><option value="1 BHK">1 BHK</option><option value="2 BHK">2 BHK</option><option value="3 BHK">3 BHK</option><option value="Flat">Full Flat</option>
+                </select>
+                <select id="edit-room-tenant" class="form-control" style="margin-bottom:8px;">
+                    <option value="All">Any Tenant</option><option value="Students Only">Students Only</option><option value="Family Only">Family Only</option><option value="Girls Only">Girls Only</option><option value="Boys Only">Boys Only</option>
+                </select>
+                <input type="number" id="edit-room-price" class="form-control" placeholder="Price">
+                <input type="text" id="edit-room-address" class="form-control" placeholder="Address">
+                <div style="display:flex; gap:10px; margin-top:10px;"><button class="btn-primary" onclick="window.saveRoomEdit()">Update</button><button class="btn-primary" style="background:#f1f5f9; color:#475569;" onclick="document.getElementById('edit-room-modal').style.display='none'">Cancel</button></div>
+            </div>
+        </div>
+
+        <div id="delete-modal" class="modal">
+            <div class="modal-box">
+                <i class="fa-solid fa-trash-can" style="font-size:30px; color:#ef4444; margin-bottom:15px;"></i>
+                <h3 style="margin-bottom:5px;">Delete Room?</h3>
+                <div style="display:flex; gap:10px; margin-top:20px;"><button class="btn-primary btn-del" id="confirm-delete-btn">Yes, Delete</button><button class="btn-primary" style="background:#f1f5f9; color:#475569;" onclick="document.getElementById('delete-modal').style.display='none'">No</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE MODULE SCRIPT -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue, remove, update, set } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+        // --- YOUR PROVIDED FIREBASE CONFIG ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyACyhDCsfJ23x1hJ1njzkvrEmRVTN1HZ78",
+          authDomain: "rooms-20b62.firebaseapp.com",
+          databaseURL: "https://rooms-20b62-default-rtdb.firebaseio.com",
+          projectId: "rooms-20b62",
+          storageBucket: "rooms-20b62.firebasestorage.app",
+          messagingSenderId: "108894681696",
+          appId: "1:108894681696:web:1398f3749ac3c502f26105",
+          measurementId: "G-VS0FESKZVH"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- VARIABLES ---
+        const USER_KEY = 'raj_user_session_v5'; 
+        const HISTORY_KEY = 'raj_history_data_v5'; 
+        let currentUser = JSON.parse(localStorage.getItem(USER_KEY));
+        let checkedHistory = JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+        let allRooms = [];
+        let deleteTargetId = null;
+        let searchTimeout = null;
+
+        // Initialize App
+        if(currentUser) {
+            // Ensure global functions are ready before showing app
+            setTimeout(() => window.showApp(), 100);
+        }
+
+        // --- SYNC ROOMS FROM FIREBASE ---
+        onValue(ref(db, 'rooms'), (snapshot) => {
+            const data = snapshot.val();
+            allRooms = data ? Object.entries(data).map(([key, val]) => ({ id: key, ...val })).reverse() : [];
+            
+            // Auto refresh current view
+            if(document.getElementById('tab-home').classList.contains('active')) {
+                const val = document.getElementById('search-input').value;
+                window.renderFeed(val);
+            }
+            if(document.getElementById('page-my-rooms').style.display === 'flex') {
+                window.renderMyRooms();
+            }
+        });
+
+        // --- DEFINE GLOBAL FUNCTIONS ---
+        
+        window.attemptLogin = () => {
+            const name = document.getElementById('l-name').value;
+            const mobile = document.getElementById('l-mobile').value;
+            if(!name || !mobile) return window.showToast("Enter Name & Mobile", "error");
+            if(mobile.length < 10) return window.showToast("Invalid Mobile", "error");
+            
+            window.runWithLoader(() => {
+                currentUser = { name, mobile, id: Date.now(), pic: '' };
+                localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+                
+                // Save to Firebase Users
+                set(ref(db, 'users/' + mobile), currentUser);
+                
+                window.showToast(`Welcome, ${name}!`);
+                window.showApp();
+            });
+        };
+
+        window.showApp = () => {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-wrapper').style.display = 'block';
+            document.body.classList.add('app-mode');
+            window.updateProfileUI();
+            window.renderFeed();
+        };
+
+        window.handlePost = () => {
+            const price = document.getElementById('p-price').value;
+            const addr = document.getElementById('p-address').value;
+            const type = document.getElementById('p-type').value;
+            const tenant = document.getElementById('p-tenant').value;
+            const capacity = document.getElementById('p-capacity').value;
+            const imgInput = document.getElementById('p-img');
+            
+            if(!price || !addr || !type || !tenant || !capacity) return window.showToast("Fill all details", "error");
+            if(!imgInput.files[0]) return window.showToast("Upload photo", "error");
+
+            window.runWithLoader(() => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const newRoom = {
+                        ownerId: currentUser.id,
+                        name: currentUser.name,
+                        mobile: currentUser.mobile,
+                        address: addr,
+                        price: price,
+                        type: type,
+                        tenant: tenant,
+                        capacity: capacity,
+                        image: e.target.result,
+                        hidden: false,
+                        timestamp: Date.now()
+                    };
+                    
+                    push(ref(db, 'rooms'), newRoom).then(() => {
+                        window.showToast("Room Posted Online!");
+                        document.getElementById('p-address').value = '';
+                        document.getElementById('p-price').value = '';
+                        document.getElementById('p-img').value = '';
+                        document.getElementById('p-capacity').value = '';
+                        window.switchTab('tab-home', document.querySelectorAll('.nav-item')[0]);
+                    });
+                };
+                reader.readAsDataURL(imgInput.files[0]);
+            });
+        };
+
+        window.renderFeed = (filter = '') => {
+            const container = document.getElementById('rooms-feed');
+            container.innerHTML = '';
+            
+            const list = allRooms.filter(r => !r.hidden && (
+                r.address.toLowerCase().includes(filter.toLowerCase()) || 
+                r.price.includes(filter) ||
+                (r.type && r.type.toLowerCase().includes(filter.toLowerCase()))
+            ));
+            
+            if(list.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:50px;"><i class="fa-solid fa-ban" style="font-size:3rem; color:#ef4444; opacity:0.5;"></i><p style="margin-top:10px; color:#64748b;">No rooms found</p></div>';
+                return;
+            }
+
+            list.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'room-card';
+                const rType = r.type || 'Room';
+                const rTenant = r.tenant || 'Any';
+                const rCap = r.capacity ? `Max ${r.capacity}` : '';
+
+                div.innerHTML = `
+                    <img src="${r.image}">
+                    <div class="card-body">
+                        <div class="price-tag">₹${r.price} <span style="font-size:0.8rem; color:#94a3b8; font-weight:400;">/mo</span></div>
+                        <div class="address-text"><i class="fa-solid fa-location-dot" style="color:#ef4444;"></i> ${r.address}</div>
+                        <div class="tags-row">
+                            <span class="tag-badge tag-type">${rType}</span>
+                            <span class="tag-badge tag-tenant">${rTenant}</span>
+                            ${rCap ? `<span class="tag-badge tag-capacity"><i class="fa-solid fa-user-group"></i> ${rCap}</span>` : ''}
+                        </div>
+                    </div>`;
+                div.onclick = () => window.showDetails(r);
+                container.appendChild(div);
+            });
+        };
+
+        window.showDetails = (r) => {
+            window.runWithLoader(() => {
+                if(!checkedHistory.includes(r.id)) { checkedHistory.unshift(r.id); localStorage.setItem(HISTORY_KEY, JSON.stringify(checkedHistory)); }
+                
+                const rType = r.type || 'Standard Room';
+                const rTenant = r.tenant || 'Anyone';
+                const rCap = r.capacity || 'N/A';
+
+                document.getElementById('details-content').innerHTML = `
+                    <img src="${r.image}" style="width:100%; height:260px; object-fit:cover;">
+                    <div style="padding:20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h2 style="color:#2563eb; font-size:1.8rem;">₹${r.price}</h2>
+                            <span style="background:#dbeafe; color:#2563eb; padding:5px 10px; border-radius:6px; font-size:0.8rem; font-weight:600;">For Rent</span>
+                        </div>
+                        <p style="color:#64748b; margin:10px 0 20px; font-size:1rem;"><i class="fa-solid fa-map-pin"></i> ${r.address}</p>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px;">
+                            <div style="background:#f8fafc; padding:10px; border-radius:8px; text-align:center;"><div style="font-size:0.8rem; color:#64748b;">Type</div><div style="font-weight:600;">${rType}</div></div>
+                            <div style="background:#f8fafc; padding:10px; border-radius:8px; text-align:center;"><div style="font-size:0.8rem; color:#64748b;">Preference</div><div style="font-weight:600;">${rTenant}</div></div>
+                            <div style="background:#f8fafc; padding:10px; border-radius:8px; text-align:center;"><div style="font-size:0.8rem; color:#64748b;">Capacity</div><div style="font-weight:600;">${rCap} Persons</div></div>
+                        </div>
+                        <div style="padding:15px; background:white; border:1px solid #f1f5f9; border-radius:12px; margin-bottom:20px;">
+                            <small style="color:#94a3b8; font-weight:600;">OWNER CONTACT</small>
+                            <div style="display:flex; align-items:center; margin-top:5px;">
+                                <div style="width:40px; height:40px; background:#e2e8f0; border-radius:50%; display:flex; justify-content:center; align-items:center; margin-right:10px;"><i class="fa-solid fa-user" style="color:#64748b;"></i></div>
+                                <div><div style="font-weight:600;">${r.name}</div><div style="color:#64748b;">+91 ${r.mobile}</div></div>
+                            </div>
+                        </div>
+                        <a href="tel:${r.mobile}" class="btn-primary" style="display:flex; justify-content:center; align-items:center; gap:10px; text-decoration:none; background:#22c55e;"><i class="fa-solid fa-phone"></i> Call Owner</a>
+                    </div>`;
+                document.getElementById('page-details').style.display = 'flex';
+            });
+        };
+
+        window.renderMyRooms = () => {
+            const container = document.getElementById('my-rooms-list');
+            const myData = allRooms.filter(r => r.ownerId === currentUser.id);
+            container.innerHTML = myData.length ? '' : '<div style="text-align:center; padding:30px; color:#94a3b8;">No rooms posted.</div>';
+            
+            myData.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'room-card';
+                div.innerHTML = `
+                    <div style="display:flex; padding:12px; gap:12px;">
+                        <img src="${r.image}" style="width:90px; height:90px; border-radius:12px; object-fit:cover;">
+                        <div style="flex:1;">
+                            <b style="color:#2563eb;">₹${r.price}</b><br>
+                            <span style="font-size:0.8rem; background:#f1f5f9; padding:2px 6px; border-radius:4px;">${r.type || 'Room'}</span>
+                            <div style="margin-top:10px;">
+                                <button class="btn-sm btn-edit" onclick="window.openEditRoom('${r.id}')">Edit</button>
+                                <button class="btn-sm btn-del" onclick="window.confirmDelete('${r.id}')">Delete</button>
+                            </div>
+                        </div>
+                    </div>`;
+                container.appendChild(div);
+            });
+        };
+
+        // Delete / Edit Logic
+        window.confirmDelete = (id) => { deleteTargetId = id; document.getElementById('delete-modal').style.display = 'flex'; };
+        document.getElementById('confirm-delete-btn').onclick = () => {
+            if(deleteTargetId) {
+                remove(ref(db, 'rooms/' + deleteTargetId)).then(() => {
+                    document.getElementById('delete-modal').style.display = 'none';
+                    window.showToast("Deleted");
+                });
+            }
+        };
+
+        window.openEditRoom = (id) => {
+            const r = allRooms.find(x => x.id === id);
+            if(r) {
+                document.getElementById('edit-room-id').value = r.id;
+                document.getElementById('edit-room-price').value = r.price;
+                document.getElementById('edit-room-address').value = r.address;
+                document.getElementById('edit-room-modal').style.display = 'flex';
+            }
+        };
+
+        window.saveRoomEdit = () => {
+            const id = document.getElementById('edit-room-id').value;
+            const updates = {
+                price: document.getElementById('edit-room-price').value,
+                address: document.getElementById('edit-room-address').value,
+                type: document.getElementById('edit-room-type').value,
+                tenant: document.getElementById('edit-room-tenant').value
+            };
+            update(ref(db, 'rooms/' + id), updates).then(() => {
+                document.getElementById('edit-room-modal').style.display = 'none';
+                window.showToast("Updated!");
+            });
+        };
+
+        // Standard Utils
+        window.switchTab = (tabId, el) => {
+            window.runWithLoader(() => {
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.getElementById(tabId).classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                el.classList.add('active');
+                if(tabId === 'tab-home') {
+                    const val = document.getElementById('search-input').value;
+                    window.renderFeed(val);
+                }
+            });
+        };
+
+        window.openPage = (pageId) => {
+            window.runWithLoader(() => {
+                document.getElementById(pageId).style.display = 'flex';
+                if(pageId === 'page-my-rooms') window.renderMyRooms();
+                if(pageId === 'page-checked') window.renderHistory();
+            });
+        };
+        window.closePage = (pageId) => { document.getElementById(pageId).style.display = 'none'; };
+        window.logout = () => { window.runWithLoader(() => { localStorage.removeItem(USER_KEY); location.reload(); }); };
+        
+        window.handleSearch = (val) => { 
+            clearTimeout(searchTimeout); 
+            searchTimeout = setTimeout(() => { window.runWithLoader(() => window.renderFeed(val)); }, 600); 
+        };
+
+        window.updateProfilePic = (input) => {
+            if (input.files && input.files[0]) {
+                window.runWithLoader(() => {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        currentUser.pic = e.target.result;
+                        localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+                        set(ref(db, 'users/' + currentUser.mobile + '/pic'), currentUser.pic);
+                        window.updateProfileUI();
+                        window.showToast("Pic updated");
+                    }
+                    reader.readAsDataURL(input.files[0]);
+                });
+            }
+        };
+
+        window.openNameModal = () => { document.getElementById('edit-name-input').value = currentUser.name; document.getElementById('name-modal').style.display = 'flex'; };
+        window.saveName = () => {
+            const val = document.getElementById('edit-name-input').value;
+            if(val) { 
+                currentUser.name = val; 
+                localStorage.setItem(USER_KEY, JSON.stringify(currentUser)); 
+                set(ref(db, 'users/' + currentUser.mobile + '/name'), val);
+                window.updateProfileUI(); 
+                document.getElementById('name-modal').style.display='none'; 
+                window.showToast("Name Saved"); 
+            }
+        };
+
+        window.updateProfileUI = () => {
+            if(!currentUser) return;
+            document.getElementById('display-name').innerText = currentUser.name;
+            document.getElementById('display-mobile').innerText = "+91 " + currentUser.mobile;
+            document.getElementById('p-name').value = currentUser.name;
+            document.getElementById('p-mobile').value = currentUser.mobile;
+            if(currentUser.pic) document.getElementById('display-profile-pic').src = currentUser.pic;
+        };
+
+        window.showToast = (msg, type = 'success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `${type==='success'?'<i class="fa-solid fa-circle-check"></i>':'<i class="fa-solid fa-circle-exclamation"></i>'} <span class="toast-msg">${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.animation = 'fadeOut 0.4s ease forwards'; setTimeout(() => toast.remove(), 400); }, 3000);
+        };
+
+        window.runWithLoader = (callback) => {
+            document.getElementById('global-loader').style.display = 'flex';
+            setTimeout(() => { try { callback(); } catch (e) { console.error(e); } document.getElementById('global-loader').style.display = 'none'; }, 300);
+        };
+
+    </script>
+</body>
+</html>
